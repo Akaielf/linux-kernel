@@ -1,0 +1,28 @@
+1. Setup and install Linux Cross Reference in the environment
+2. Create custom kernel modules
+
+LXR:
+http://lxr.sourceforge.net/en/1-0-InstallSteps/1-0-install.php
+
+install MariaDB (required by LXR):
+https://www.liquidweb.com/kb/how-to-install-mariadb-5-5-on-ubuntu-14-04-lts/
+
+database login:
+mysql -u root -p
+
+Compile kernel:
+https://debian-handbook.info/download/stable/debian-handbook.pdf
+
+make deb-pkg LOCALVERSION=-falcot KDEB_PKGVERSION=$(make kernelversion)-1
+
+after building the modules:
+sudo insmod
+cat /proc/modules | grep [module_name]
+
+# to see the printk logs output by modules
+cat /var/log/message 
+
+macros usage:
+https://linux.die.net/lkmpg/x245.html
+
+
