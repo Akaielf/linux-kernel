@@ -1,0 +1,1 @@
+cmd_/home/kh276/linux-kernel/hw2/hello_3/hello_3.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /home/kh276/linux-kernel/hw2/hello_3/hello_3.ko /home/kh276/linux-kernel/hw2/hello_3/hello_3.o /home/kh276/linux-kernel/hw2/hello_3/hello_3.mod.o
