@@ -1,0 +1,4 @@
+make deb-pkg LOCALVERSION=-falcot KDEB_PKGVERSION=$(make kernelversion)-1
+sudo dpkg -i linux-image-3.16.39-falcot_3.16.39-2_amd64.deb
+
+printk(KERN_INFO "Kai-Chen_Hsieh: setup_arch(): command_line = %s \n", *cmdline_p);
