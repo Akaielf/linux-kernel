@@ -1,0 +1,8 @@
+5 functions I choose:
+(1) setup_arch(): defined in arch/x86/kernel/setup.c
+(2) page_alloc_init(): defined in mm/pagge_alloc.c
+(3) parse_early_param(): defined in init/main.c
+(4) trap_init(): defined in arch/x86/kernel/traps.c
+(5) mm_init(): defined in init/main.c
+
+screenshots are included in the attached files.
