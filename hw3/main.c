@@ -448,6 +448,7 @@ void __init parse_early_param(void)
 {
 	static __initdata int done = 0;
 	static __initdata char tmp_cmdline[COMMAND_LINE_SIZE];
+	printk(KERN_INFO "Kai-Chen_Hsieh: parse_early_param(): setup_arch() code calls this early on \n");
 
 	if (done)
 		return;
@@ -491,6 +492,7 @@ static void __init mm_init(void)
 	 * page_cgroup requires contiguous pages,
 	 * bigger than MAX_ORDER unless SPARSEMEM.
 	 */
+	printk(KERN_INFO "Kai Chen, Hsieh: mm_init(): calls mem_init() and kmem_cache_init() \n");
 	page_cgroup_init_flatmem();
 	mem_init();
 	kmem_cache_init();

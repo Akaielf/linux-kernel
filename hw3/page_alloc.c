@@ -5569,6 +5569,7 @@ static int page_alloc_cpu_notify(struct notifier_block *self,
 
 void __init page_alloc_init(void)
 {
+	printk(KERN_INFO "Kai-Chen_Hsieh: page_alloc_init(): this function calls hotcpu_notifier() \n");
 	hotcpu_notifier(page_alloc_cpu_notify, 0);
 }
 

@@ -801,6 +801,7 @@ void __init trap_init(void)
 	early_iounmap(p, 4);
 #endif
 
+	printk(KERN_INFO "Kai Chen, Hsieh: trap_init(): initialize traps \n");
 	set_intr_gate(X86_TRAP_DE, divide_error);
 	set_intr_gate_ist(X86_TRAP_NMI, &nmi, NMI_STACK);
 	/* int4 can be called from all */

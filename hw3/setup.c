@@ -973,6 +973,7 @@ void __init setup_arch(char **cmdline_p)
 
 	strlcpy(command_line, boot_command_line, COMMAND_LINE_SIZE);
 	*cmdline_p = command_line;
+	printk(KERN_INFO "Kai-Chen_Hsieh: setup_arch(): command_line = %s \n", *cmdline_p);
 
 	/*
 	 * x86_configure_nx() is called before parse_early_param() to detect
