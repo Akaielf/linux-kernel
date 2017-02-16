@@ -1,1 +1,45 @@
+make deb-pkg LOCALVERSION=-falcot KDEB_PKGVERSION=$(make kernelversion)-1
+sudo dpkg -i linux-image-3.16.39-falcot_3.16.39-2_amd64.deb
+
+
 #include <linux/mm.h>
+
+include/linux/mm.h:
+
+1133  * Flags passed to show_mem() and show_free_areas() to suppress output in
+1134  * various contexts.
+1135  */
+1136 #define SHOW_MEM_FILTER_NODES		(0x0001u)	/* disallowed nodes */
+
+mm/page_alloc.c: filter set to 1u to skip, set to 0 for not skip
+
+4239 void show_free_areas(unsigned int filter)
+4240 {
+4241 	unsigned long free_pcp = 0;
+4242 	int cpu;
+4243 	struct zone *zone;
+4244 	pg_data_t *pgdat;
+4245 
+4246 	for_each_populated_zone(zone) {
+4247 		if (skip_free_areas_node(filter, zone_to_nid(zone)))
+4248 			continue;
+4249 
+4250 		for_each_online_cpu(cpu)
+4251 			free_pcp += per_cpu_ptr(zone->pageset, cpu)->pcp.count;
+
+hugetlb_show_meminfo() in hugetlb.c
+
+http://lxr.free-electrons.com/source/lib/show_mem.c
+http://lxr.free-electrons.com/source/mm/page_alloc.c?v=4.9#L4239
+
+read and write /proc files in kernel environment
+http://www.tldp.org/LDP/lkmpg/2.6/html/x769.html
+
+http://www.ibm.com/developerworks/library/l-proc/
+
+
+shell commands in kernel space
+http://stackoverflow.com/questions/11193648/execute-shell-command-in-kernel-module
+https://www.ibm.com/developerworks/library/l-proc/
+
+
