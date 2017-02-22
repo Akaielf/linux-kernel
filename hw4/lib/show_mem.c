@@ -14,7 +14,7 @@ void show_mem(unsigned int filter)
 	pg_data_t *pgdat;
 	unsigned long total = 0, reserved = 0, highmem = 0;
 
-	printk("Mem-Info:\n");
+	printk("Akai: Mem-Info:\n");
 	show_free_areas(filter);
 
 	for_each_online_pgdat(pgdat) {
@@ -36,14 +36,14 @@ void show_mem(unsigned int filter)
 		pgdat_resize_unlock(pgdat, &flags);
 	}
 
-	printk("%lu pages RAM\n", total);
-	printk("%lu pages HighMem/MovableOnly\n", highmem);
-	printk("%lu pages reserved\n", reserved);
+	printk("Akai: %lu pages RAM\n", total);
+	printk("Akai: %lu pages HighMem/MovableOnly\n", highmem);
+	printk("Akai: %lu pages reserved\n", reserved);
 #ifdef CONFIG_QUICKLIST
-	printk("%lu pages in pagetable cache\n",
+	printk("Akai: %lu pages in pagetable cache\n",
 		quicklist_total_size());
 #endif
 #ifdef CONFIG_MEMORY_FAILURE
-	printk("%lu pages hwpoisoned\n", atomic_long_read(&num_poisoned_pages));
+	printk("Akai: %lu pages hwpoisoned\n", atomic_long_read(&num_poisoned_pages));
 #endif
 }

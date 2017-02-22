@@ -3052,7 +3052,7 @@ unsigned long nr_free_pagecache_pages(void)
 static inline void show_node(struct zone *zone)
 {
 	if (IS_ENABLED(CONFIG_NUMA))
-		printk("Node %d ", zone_to_nid(zone));
+		printk("Akai: Node %d ", zone_to_nid(zone));
 }
 
 void si_meminfo(struct sysinfo *val)
@@ -3140,6 +3140,47 @@ static void show_migration_types(unsigned char type)
 	printk("(%s) ", tmp);
 }
 
+/* The files under /proc are not real files, they are information stored in the memory *
+ * Since we are in the kernel space, we don't need to actually read /proc/buddyinfo    *
+ * We can obtain the information directly through the functions we saw in show_mem()   */
+void show_buddyinfo(unsigned int filter)
+{
+	struct zone *zone;
+
+	printk("Akai: calls into show_buddyinfo() \n");
+	printk("Akai: /proc/buddyinfo content: \n");
+	for_each_populated_zone(zone) {
+		unsigned long nr[MAX_ORDER], flags, order, total = 0;
+		unsigned char types[MAX_ORDER];
+
+		if (skip_free_areas_node(filter, zone_to_nid(zone)))
+			continue;
+		printk("\n");
+		show_node(zone);
+		printk("zone	%s: ", zone->name);
+
+		spin_lock_irqsave(&zone->lock, flags);
+		for (order = 0; order < MAX_ORDER; order++) {
+			struct free_area *area = &zone->free_area[order];
+			int type;
+
+			nr[order] = area->nr_free;
+			total += nr[order] << order;
+
+			types[order] = 0;
+			for (type = 0; type < MIGRATE_TYPES; type++) {
+				if (!list_empty(&area->free_list[type]))
+					types[order] |= 1 << type;
+			}
+		}
+		spin_unlock_irqrestore(&zone->lock, flags);
+		for (order = 0; order < MAX_ORDER; order++) {
+			printk("	%lu ", nr[order]);
+		}
+	}
+	printk("\nAkai: leaving show_buddyinfo() \n");
+}
+
 /*
  * Show free area list (used inside shift_scroll-lock stuff)
  * We also calculate the percentage fragmentation. We do this by counting the
@@ -3156,20 +3197,20 @@ void show_free_areas(unsigned int filter)
 		if (skip_free_areas_node(filter, zone_to_nid(zone)))
 			continue;
 		show_node(zone);
-		printk("%s per-cpu:\n", zone->name);
+		printk("Akai: %s per-cpu:\n", zone->name);
 
 		for_each_online_cpu(cpu) {
 			struct per_cpu_pageset *pageset;
 
 			pageset = per_cpu_ptr(zone->pageset, cpu);
 
-			printk("CPU %4d: hi:%5d, btch:%4d usd:%4d\n",
+			printk("Akai: CPU %4d: hi:%5d, btch:%4d usd:%4d\n",
 			       cpu, pageset->pcp.high,
 			       pageset->pcp.batch, pageset->pcp.count);
 		}
 	}
 
-	printk("active_anon:%lu inactive_anon:%lu isolated_anon:%lu\n"
+	printk("Akai: active_anon:%lu inactive_anon:%lu isolated_anon:%lu\n"
 		" active_file:%lu inactive_file:%lu isolated_file:%lu\n"
 		" unevictable:%lu"
 		" dirty:%lu writeback:%lu unstable:%lu\n"
@@ -3201,7 +3242,7 @@ void show_free_areas(unsigned int filter)
 		if (skip_free_areas_node(filter, zone_to_nid(zone)))
 			continue;
 		show_node(zone);
-		printk("%s"
+		printk("Akai: %s"
 			" free:%lukB"
 			" min:%lukB"
 			" low:%lukB"
@@ -3262,9 +3303,9 @@ void show_free_areas(unsigned int filter)
 			zone->pages_scanned,
 			(!zone_reclaimable(zone) ? "yes" : "no")
 			);
-		printk("lowmem_reserve[]:");
+		printk("Akai: lowmem_reserve[]:");
 		for (i = 0; i < MAX_NR_ZONES; i++)
-			printk(" %lu", zone->lowmem_reserve[i]);
+			printk("%lu", zone->lowmem_reserve[i]);
 		printk("\n");
 	}
 
@@ -3302,7 +3343,7 @@ void show_free_areas(unsigned int filter)
 
 	hugetlb_show_meminfo();
 
-	printk("%ld total pagecache pages\n", global_page_state(NR_FILE_PAGES));
+	printk("Akai: %ld total pagecache pages\n", global_page_state(NR_FILE_PAGES));
 
 	show_swap_cache_info();
 }

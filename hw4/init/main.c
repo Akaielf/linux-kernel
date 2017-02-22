@@ -78,6 +78,8 @@
 #include <linux/context_tracking.h>
 #include <linux/random.h>
 #include <linux/list.h>
+#include <linux/mm.h>
+#include <linux/kmod.h>
 
 #include <asm/io.h>
 #include <asm/bugs.h>
@@ -416,6 +418,10 @@ static noinline void __init_refok rest_init(void)
 	 */
 	init_idle_bootup_task(current);
 	schedule_preempt_disabled();
+	/* Show memory info at the end of start_kernel() */
+	show_mem(1);
+	show_buddyinfo(1);
+
 	/* Call into cpu_idle with preempt disabled */
 	cpu_startup_entry(CPUHP_ONLINE);
 }

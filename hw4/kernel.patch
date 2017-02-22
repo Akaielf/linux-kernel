@@ -1,0 +1,219 @@
+diff --git a/hw4/include/linux/mm.h b/hw4/include/linux/mm.h
+index dbf1592..30f6907 100644
+--- a/hw4/include/linux/mm.h
++++ b/hw4/include/linux/mm.h
+@@ -1082,6 +1082,7 @@ extern void pagefault_out_of_memory(void);
+  */
+ #define SHOW_MEM_FILTER_NODES		(0x0001u)	/* disallowed nodes */
+ 
++extern void show_buddyinfo(unsigned int filter);
+ extern void show_free_areas(unsigned int flags);
+ extern bool skip_free_areas_node(unsigned int flags, int nid);
+ 
+diff --git a/hw4/init/main.c b/hw4/init/main.c
+index 8827905..12e715f 100644
+--- a/hw4/init/main.c
++++ b/hw4/init/main.c
+@@ -78,6 +78,8 @@
+ #include <linux/context_tracking.h>
+ #include <linux/random.h>
+ #include <linux/list.h>
++#include <linux/mm.h>
++#include <linux/kmod.h>
+ 
+ #include <asm/io.h>
+ #include <asm/bugs.h>
+@@ -416,6 +418,10 @@ static noinline void __init_refok rest_init(void)
+ 	 */
+ 	init_idle_bootup_task(current);
+ 	schedule_preempt_disabled();
++	/* Show memory info at the end of start_kernel() */
++	show_mem(1);
++	show_buddyinfo(1);
++
+ 	/* Call into cpu_idle with preempt disabled */
+ 	cpu_startup_entry(CPUHP_ONLINE);
+ }
+diff --git a/hw4/lib/show_mem.c b/hw4/lib/show_mem.c
+index 0922579..25604ba 100644
+--- a/hw4/lib/show_mem.c
++++ b/hw4/lib/show_mem.c
+@@ -14,7 +14,7 @@ void show_mem(unsigned int filter)
+ 	pg_data_t *pgdat;
+ 	unsigned long total = 0, reserved = 0, highmem = 0;
+ 
+-	printk("Mem-Info:\n");
++	printk("Akai: Mem-Info:\n");
+ 	show_free_areas(filter);
+ 
+ 	for_each_online_pgdat(pgdat) {
+@@ -36,14 +36,14 @@ void show_mem(unsigned int filter)
+ 		pgdat_resize_unlock(pgdat, &flags);
+ 	}
+ 
+-	printk("%lu pages RAM\n", total);
+-	printk("%lu pages HighMem/MovableOnly\n", highmem);
+-	printk("%lu pages reserved\n", reserved);
++	printk("Akai: %lu pages RAM\n", total);
++	printk("Akai: %lu pages HighMem/MovableOnly\n", highmem);
++	printk("Akai: %lu pages reserved\n", reserved);
+ #ifdef CONFIG_QUICKLIST
+-	printk("%lu pages in pagetable cache\n",
++	printk("Akai: %lu pages in pagetable cache\n",
+ 		quicklist_total_size());
+ #endif
+ #ifdef CONFIG_MEMORY_FAILURE
+-	printk("%lu pages hwpoisoned\n", atomic_long_read(&num_poisoned_pages));
++	printk("Akai: %lu pages hwpoisoned\n", atomic_long_read(&num_poisoned_pages));
+ #endif
+ }
+diff --git a/hw4/mm/hugetlb.c b/hw4/mm/hugetlb.c
+index 0225f1c..b0796b3 100644
+--- a/hw4/mm/hugetlb.c
++++ b/hw4/mm/hugetlb.c
+@@ -2387,7 +2387,7 @@ void hugetlb_show_meminfo(void)
+ 
+ 	for_each_node_state(nid, N_MEMORY)
+ 		for_each_hstate(h)
+-			pr_info("Node %d hugepages_total=%u hugepages_free=%u hugepages_surp=%u hugepages_size=%lukB\n",
++			pr_info("Akai: Node %d hugepages_total=%u hugepages_free=%u hugepages_surp=%u hugepages_size=%lukB\n",
+ 				nid,
+ 				h->nr_huge_pages_node[nid],
+ 				h->free_huge_pages_node[nid],
+diff --git a/hw4/mm/page_alloc.c b/hw4/mm/page_alloc.c
+index e4588a3..bf60816 100644
+--- a/hw4/mm/page_alloc.c
++++ b/hw4/mm/page_alloc.c
+@@ -3052,7 +3052,7 @@ unsigned long nr_free_pagecache_pages(void)
+ static inline void show_node(struct zone *zone)
+ {
+ 	if (IS_ENABLED(CONFIG_NUMA))
+-		printk("Node %d ", zone_to_nid(zone));
++		printk("Akai: Node %d ", zone_to_nid(zone));
+ }
+ 
+ void si_meminfo(struct sysinfo *val)
+@@ -3140,6 +3140,47 @@ static void show_migration_types(unsigned char type)
+ 	printk("(%s) ", tmp);
+ }
+ 
++/* The files under /proc are not real files, they are information stored in the memory *
++ * Since we are in the kernel space, we don't need to actually read /proc/buddyinfo    *
++ * We can obtain the information directly through the functions we saw in show_mem()   */
++void show_buddyinfo(unsigned int filter)
++{
++	struct zone *zone;
++
++	printk("Akai: calls into show_buddyinfo() \n");
++	printk("Akai: /proc/buddyinfo content: \n");
++	for_each_populated_zone(zone) {
++		unsigned long nr[MAX_ORDER], flags, order, total = 0;
++		unsigned char types[MAX_ORDER];
++
++		if (skip_free_areas_node(filter, zone_to_nid(zone)))
++			continue;
++		printk("\n");
++		show_node(zone);
++		printk("zone	%s: ", zone->name);
++
++		spin_lock_irqsave(&zone->lock, flags);
++		for (order = 0; order < MAX_ORDER; order++) {
++			struct free_area *area = &zone->free_area[order];
++			int type;
++
++			nr[order] = area->nr_free;
++			total += nr[order] << order;
++
++			types[order] = 0;
++			for (type = 0; type < MIGRATE_TYPES; type++) {
++				if (!list_empty(&area->free_list[type]))
++					types[order] |= 1 << type;
++			}
++		}
++		spin_unlock_irqrestore(&zone->lock, flags);
++		for (order = 0; order < MAX_ORDER; order++) {
++			printk("	%lu ", nr[order]);
++		}
++	}
++	printk("\nAkai: leaving show_buddyinfo() \n");
++}
++
+ /*
+  * Show free area list (used inside shift_scroll-lock stuff)
+  * We also calculate the percentage fragmentation. We do this by counting the
+@@ -3156,20 +3197,20 @@ void show_free_areas(unsigned int filter)
+ 		if (skip_free_areas_node(filter, zone_to_nid(zone)))
+ 			continue;
+ 		show_node(zone);
+-		printk("%s per-cpu:\n", zone->name);
++		printk("Akai: %s per-cpu:\n", zone->name);
+ 
+ 		for_each_online_cpu(cpu) {
+ 			struct per_cpu_pageset *pageset;
+ 
+ 			pageset = per_cpu_ptr(zone->pageset, cpu);
+ 
+-			printk("CPU %4d: hi:%5d, btch:%4d usd:%4d\n",
++			printk("Akai: CPU %4d: hi:%5d, btch:%4d usd:%4d\n",
+ 			       cpu, pageset->pcp.high,
+ 			       pageset->pcp.batch, pageset->pcp.count);
+ 		}
+ 	}
+ 
+-	printk("active_anon:%lu inactive_anon:%lu isolated_anon:%lu\n"
++	printk("Akai: active_anon:%lu inactive_anon:%lu isolated_anon:%lu\n"
+ 		" active_file:%lu inactive_file:%lu isolated_file:%lu\n"
+ 		" unevictable:%lu"
+ 		" dirty:%lu writeback:%lu unstable:%lu\n"
+@@ -3201,7 +3242,7 @@ void show_free_areas(unsigned int filter)
+ 		if (skip_free_areas_node(filter, zone_to_nid(zone)))
+ 			continue;
+ 		show_node(zone);
+-		printk("%s"
++		printk("Akai: %s"
+ 			" free:%lukB"
+ 			" min:%lukB"
+ 			" low:%lukB"
+@@ -3262,9 +3303,9 @@ void show_free_areas(unsigned int filter)
+ 			zone->pages_scanned,
+ 			(!zone_reclaimable(zone) ? "yes" : "no")
+ 			);
+-		printk("lowmem_reserve[]:");
++		printk("Akai: lowmem_reserve[]:");
+ 		for (i = 0; i < MAX_NR_ZONES; i++)
+-			printk(" %lu", zone->lowmem_reserve[i]);
++			printk("%lu", zone->lowmem_reserve[i]);
+ 		printk("\n");
+ 	}
+ 
+@@ -3302,7 +3343,7 @@ void show_free_areas(unsigned int filter)
+ 
+ 	hugetlb_show_meminfo();
+ 
+-	printk("%ld total pagecache pages\n", global_page_state(NR_FILE_PAGES));
++	printk("Akai: %ld total pagecache pages\n", global_page_state(NR_FILE_PAGES));
+ 
+ 	show_swap_cache_info();
+ }
+diff --git a/hw4/mm/swap_state.c b/hw4/mm/swap_state.c
+index 31321fa..64d2a6b 100644
+--- a/hw4/mm/swap_state.c
++++ b/hw4/mm/swap_state.c
+@@ -68,13 +68,13 @@ static atomic_t swapin_readahead_hits = ATOMIC_INIT(4);
+ 
+ void show_swap_cache_info(void)
+ {
+-	printk("%lu pages in swap cache\n", total_swapcache_pages());
+-	printk("Swap cache stats: add %lu, delete %lu, find %lu/%lu\n",
++	printk("Akai: %lu pages in swap cache\n", total_swapcache_pages());
++	printk("Akai: Swap cache stats: add %lu, delete %lu, find %lu/%lu\n",
+ 		swap_cache_info.add_total, swap_cache_info.del_total,
+ 		swap_cache_info.find_success, swap_cache_info.find_total);
+-	printk("Free swap  = %ldkB\n",
++	printk("Akai: Free swap  = %ldkB\n",
+ 		get_nr_swap_pages() << (PAGE_SHIFT - 10));
+-	printk("Total swap = %lukB\n", total_swap_pages << (PAGE_SHIFT - 10));
++	printk("Akai: Total swap = %lukB\n", total_swap_pages << (PAGE_SHIFT - 10));
+ }
+ 
+ /*
