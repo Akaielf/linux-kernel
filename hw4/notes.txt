@@ -42,4 +42,8 @@ shell commands in kernel space
 http://stackoverflow.com/questions/11193648/execute-shell-command-in-kernel-module
 https://www.ibm.com/developerworks/library/l-proc/
 
+http://lxr.free-electrons.com/source/fs/proc/generic.c#L484
+http://lxr.free-electrons.com/source/Documentation/filesystems/proc.txt?v=2.6.24
+
+http://catalogue.pearsoned.co.uk/samplechapter/0735710430.pdf
 
