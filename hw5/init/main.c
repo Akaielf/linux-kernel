@@ -421,6 +421,7 @@ static noinline void __init_refok rest_init(void)
 	/* Show memory info at the end of start_kernel() */
 	show_mem(1);
 	show_buddyinfo(1);
+	show_kmalloc_cache_info();
 
 	/* Call into cpu_idle with preempt disabled */
 	cpu_startup_entry(CPUHP_ONLINE);

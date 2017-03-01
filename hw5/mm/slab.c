@@ -4433,3 +4433,105 @@ size_t ksize(const void *objp)
 	return virt_to_cache(objp)->object_size;
 }
 EXPORT_SYMBOL(ksize);
+
+// the following 3 functions only been called internally in slab.c, so don't export them
+int get_pages_per_slab(int order)
+{
+        return 1 << order;
+}
+
+int get_objsize(int order)
+{
+        int ret;
+        // special cases for kmem_cache index 1 and 2
+        if (order == 1) {
+                ret = 96;
+        } else if (order == 2) {
+                ret = 192;
+        } else {
+                ret = 1 << order;
+        }
+        return ret;
+}
+
+void print_kmalloc_cache(struct kmem_cache *cachep, int index)
+{
+	struct page *page;
+        unsigned long active_objs;
+        unsigned long num_objs;
+        unsigned long active_slabs = 0;
+        unsigned long num_slabs, free_objects = 0, shared_avail = 0;
+        const char *name;
+        char *error = NULL;
+        int node;
+        struct kmem_cache_node *n;
+
+        active_objs = 0;
+        num_slabs = 0;
+        for_each_online_node(node) {
+		n = cachep->node[node];
+                if (!n)
+                        continue;
+
+                check_irq_on();
+                spin_lock_irq(&n->list_lock);
+
+                list_for_each_entry(page, &n->slabs_full, lru) {
+                        if (page->active != cachep->num && !error)
+                                error = "slabs_full accounting error";
+                        active_objs += cachep->num;
+                        active_slabs++;
+                }
+                list_for_each_entry(page, &n->slabs_partial, lru) {
+                        if (page->active == cachep->num && !error)
+                                error = "slabs_partial accounting error";
+                        if (!page->active && !error)
+                                error = "slabs_partial accounting error";
+                        active_objs += page->active;
+                        active_slabs++;
+                }
+                list_for_each_entry(page, &n->slabs_free, lru) {
+                        if (page->active && !error)
+                                error = "slabs_free accounting error";
+                        num_slabs++;
+                }
+                free_objects += n->free_objects;
+                if (n->shared) {
+                        shared_avail += n->shared->avail;
+                }
+
+                spin_unlock_irq(&n->list_lock);
+        }
+	num_slabs += active_slabs;
+        num_objs = num_slabs * cachep->num;
+        if (num_objs - active_objs != free_objects && !error)
+                error = "free_objects accounting error";
+
+        name = cachep->name;
+        if (error) {
+                printk(KERN_ERR "Akai: slab: cache %s error: %s\n", name, error);
+        }
+
+        printk(KERN_INFO "Akai: cache name %s active_objs: %lu, num_objs: %lu, objsize: %u, objects_per_slab: %u, pages_per_slab: %u \n", cachep->name, active_objs, num_objs, get_objsize(index), cachep->num, get_pages_per_slab(cachep->gfporder));
+        printk(KERN_INFO "Akai: tunable: <limit>: %u, <batchcount>: %u, <sharedfactor>: %u \n", cachep->limit, cachep->batchcount, cachep->shared);
+        printk(KERN_INFO "Akai: slabdata: <active_slabs>: %lu, <num_slabs>: %lu, <sharedavail>: %lu \n\n", active_slabs, num_slabs, shared_avail);
+
+}
+
+// this function should be exported so that init/main.c can access it
+void show_kmalloc_cache_info(void)
+{
+	int i;
+        struct kmem_cache *s;
+
+	printk(KERN_INFO "Akai: calls into show_kmalloc_cache_info() \n");
+        for (i = 0; i<= KMALLOC_SHIFT_HIGH; i++) {
+                s = kmalloc_caches[i];
+                // cache 0 is usually not accessible, so we skip it
+                if (!s) {
+                        continue;
+                }
+                print_kmalloc_cache(s, i);
+        }
+	printk(KERN_INFO "Akai: leaving show_kmalloc_cache_info() \n");
+}

@@ -659,5 +659,6 @@ static inline unsigned int kmem_cache_size(struct kmem_cache *s)
 }
 
 void __init kmem_cache_init_late(void);
+void show_kmalloc_cache_info(void);
 
 #endif	/* _LINUX_SLAB_H */
