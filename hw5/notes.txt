@@ -1,1 +1,6 @@
+make deb-pkg LOCALVERSION=-falcot KDEB_PKGVERSION=$(make kernelversion)-1
+sudo dpkg -i linux-image-3.16.39-falcot_3.16.39-2_amd64.deb
+
 /proc/slabinfo for cache information
+
+https://jcshan86.wordpress.com/2014/03/30/my-own-function-to-print-slabinfo-of-kmalloc_cache-as-the-form-of-procslabinfo/
