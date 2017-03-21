@@ -1,1 +1,102 @@
+make deb-pkg LOCALVERSION=-falcot KDEB_PKGVERSION=$(make kernelversion)-1
+sudo dpkg -i linux-image-3.16.39-falcot_3.16.39-2_amd64.deb
+
 http://lxr.free-electrons.com/source/include/linux/sched.h
+
+init_pid_ns unknown symbol?
+
+in linux/sched.h
+1510 
+1511 struct task_struct {
+1512 #ifdef CONFIG_THREAD_INFO_IN_TASK
+...
+2007  * Do not put anything below here!
+2008  */
+2009 };
+
+http://stackoverflow.com/questions/625685/linux-kernel-module-linker-warnings-warning-function-module-undefin
+http://lkml.iu.edu/hypermail/linux/kernel/0807.3/3634.html
+
+DEFINE_PER_CPU(struct task_struct *, ksoftirqd);
+
+http://www.makelinux.net/ldd3/chp-8-sect-5
+
+ BUG_ON macro first checks for the condition and if condition is true 
+then it calls BUG which do a printk of msg and call panic which halts the system.
+
+struct smp_hotplug_thread {
+        struct task_struct __percpu     **store;
+        struct list_head                list;
+        int                             (*thread_should_run)(unsigned int cpu);
+        void                            (*thread_fn)(unsigned int cpu);
+        void                            (*create)(unsigned int cpu);
+        void                            (*setup)(unsigned int cpu);
+        void                            (*cleanup)(unsigned int cpu, bool online);
+        void                            (*park)(unsigned int cpu);
+        void                            (*unpark)(unsigned int cpu);
+        void                            (*pre_unpark)(unsigned int cpu);
+        bool                            selfparking;
+        const char                      *thread_comm;
+};
+
+int smpboot_register_percpu_thread(struct smp_hotplug_thread *plug_thread);
+
+static int __ref kernel_init(void *unused)
+{
+        int ret;
+
+        /* where initcall take place */
+        kernel_init_freeable();
+        /* need to finish all async __init code before freeing the memory */
+
+schedule?
+how to kill these kthreads
+
+大腿文 討論 CPU hotplug 之必要性與優點
+https://lists.linuxfoundation.org/pipermail/hotplug_sig/2004-December/000839.html
+
+get user namespace from kuid:
+uid_t from_kuid(struct user_namespace *to, kuid_t kuid);
+error condition: -1
+
+how to get start time in task_struct:
+http://stackoverflow.com/questions/22602133/i-want-to-get-execution-time-from-task-struct
+
+ps -ef
+https://www.ibm.com/support/knowledgecenter/SSLTBW_1.13.0/com.ibm.zos.r13.bpxa500/ps.htm
+C stands for CPU
+
+pid_t is int
+
+to stop kthread:
+http://lxr.free-electrons.com/source/kernel/kthread.c#L507
+
+http://lxr.free-electrons.com/source/kernel/exit.c
+in kernel/exit.c
+736 
+737 void __noreturn do_exit(long code)
+738 {
+739         struct task_struct *tsk = current;
+740         int group_dead;
+741         TASKS_RCU(int tasks_rcu_i);
+742 
+743         profile_task_exit(tsk);
+744         kcov_task_exit(tsk);
+745 
+746         WARN_ON(blk_needs_flush_plug(tsk));
+747 
+748         if (unlikely(in_interrupt()))
+749                 panic("Aiee, killing interrupt handler!");
+750         if (unlikely(!tsk->pid))
+751                 panic("Attempted to kill the idle task!");
+752 
+753         /*
+754          * If do_exit is called because this processes oopsed, it's possible
+755          * that get_fs() was left as KERNEL_DS, so reset it to USER_DS before
+756          * continuing. Amongst other possible reasons, this is to prevent
+757          * mm_release()->clear_child_tid() from writing to a user-controlled
+758          * kernel address.
+759          */
+760         set_fs(USER_DS);
+761 
+
