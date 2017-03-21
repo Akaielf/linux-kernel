@@ -1,0 +1,191 @@
+diff --git a/hw6/init/main.c b/hw6/init/main.c
+index 5ad63c1..bed6b8a 100644
+--- a/hw6/init/main.c
++++ b/hw6/init/main.c
+@@ -382,6 +382,81 @@ static void __init setup_command_line(char *command_line)
+ 	strcpy (static_command_line, command_line);
+ }
+ 
++static int Akai_kthread_1(void* unused) {
++	struct task_struct *cur_task = current;
++	// comment / name of the process
++	strcpy(cur_task->comm, "Akai_kthread_1");
++	set_task_state(cur_task, TASK_RUNNING);
++	printk(KERN_NOTICE "Akai: Akai_kthread_1 is about to be scheduled \n");
++	while (1) {
++		printk(KERN_NOTICE "Akai: Akai_kthread_1 is up and running \n");
++		/*if (kthread_should_stop()) {
++			break;
++		}*/
++		printk(KERN_NOTICE "Akai: Akai_kthread_1 is switching out \n");
++		set_task_state(current, TASK_INTERRUPTIBLE);
++		//schedule();
++		// use msleep() to force the kthread being scheduled at later point
++		// instead of using system default schedule()
++		// this also prevent the busy loop impact on performance
++		msleep(10000);
++	}
++
++	printk(KERN_NOTICE "Akai: Akai_kthread_1 is exiting \n");
++	return 0;
++}
++
++static int Akai_thread_create_1(void) {
++	int my_pid;
++	printk(KERN_NOTICE "Akai: calling kernel_thread(Akai_kthread_1) \n");
++	my_pid = kernel_thread(Akai_kthread_1, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
++	printk(KERN_NOTICE "Akai: Akai_kthread_1 pid = %d \n", my_pid);
++	return my_pid;
++}
++
++static int Akai_kthread_2(void* unused) {
++	struct task_struct *cur_task = current;
++	// comment / name of the process
++	strcpy(cur_task->comm, "Akai_kthread_1");
++	set_task_state(cur_task, TASK_RUNNING);
++	printk(KERN_NOTICE "Akai: Akai_kthread_2 is about to be scheduled \n");
++	while (1) {
++		printk(KERN_NOTICE "Akai: Akai_kthread_2 is up and running \n");
++		/*if (kthread_should_stop()) {
++			break;
++		}*/
++		printk(KERN_NOTICE "Akai: Akai_kthread_2 is switching out \n");
++		set_task_state(current, TASK_INTERRUPTIBLE);
++		//schedule();
++		// use msleep() to force the kthread being scheduled at later point
++		// instead of using system default schedule()
++		// this also prevent the busy loop impact on performance
++		msleep(10000);
++	}
++
++	printk(KERN_NOTICE "Akai: Akai_kthread_2 is exiting \n");
++	return 0;
++}
++
++static int Akai_thread_create_2(void) {
++	int my_pid;
++	printk(KERN_NOTICE "Akai: calling kernel_thread(Akai_kthread_2) \n");
++	my_pid = kernel_thread(Akai_kthread_2, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
++	printk(KERN_NOTICE "Akai: Akai_kthread_2 pid = %d \n", my_pid);
++	return my_pid;
++}
++
++static void print_task_info(void) {
++	struct task_struct *p;
++	p = current;
++
++	// UID 0 means root
++	printk(KERN_INFO "Akai:	UID	PID	PPID	on-CPU	STIME	CMD \n");
++	for_each_process(p) {
++		printk(KERN_INFO "Akai: %u	%d	%d	%d	%d	%s \n", p->cred->uid, task_pid_nr(p), task_ppid_nr(p), p->on_cpu, p->start_time.tv_sec, p->comm);
++	}
++}
++
+ /*
+  * We need to finalize in a non-__init function or else race conditions
+  * between the root thread and the init thread may cause start_kernel to
+@@ -390,12 +465,15 @@ static void __init setup_command_line(char *command_line)
+  *
+  * gcc-3.4 accidentally inlines this function, so use noinline.
+  */
+-
+ static __initdata DECLARE_COMPLETION(kthreadd_done);
+ 
+ static noinline void __init_refok rest_init(void)
+ {
+ 	int pid;
++	int akai_pid_1, akai_pid_2;
++	struct task_struct *p1;
++	struct task_struct *p2;
++	struct task_struct *p3;
+ 
+ 	rcu_scheduler_starting();
+ 	smpboot_thread_init();
+@@ -411,6 +489,8 @@ static noinline void __init_refok rest_init(void)
+ 	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
+ 	rcu_read_unlock();
+ 	complete(&kthreadd_done);
++	akai_pid_1 = Akai_thread_create_1();
++	akai_pid_2 = Akai_thread_create_2();
+ 
+ 	/*
+ 	 * The boot idle thread must execute schedule()
+@@ -419,9 +499,26 @@ static noinline void __init_refok rest_init(void)
+ 	init_idle_bootup_task(current);
+ 	schedule_preempt_disabled();
+ 	/* Show memory info at the end of start_kernel() */
+-	/* show_mem(1);
++	/*show_mem(1);
+ 	show_buddyinfo(1);
+ 	show_kmalloc_cache_info();*/
++	// print the information of the task struct on the system
++	print_task_info();
++	// destruct the kthreads created by Akai
++	p1 = find_task_by_vpid(akai_pid_1);
++	p2 = find_task_by_vpid(akai_pid_2);
++	p3 = find_task_by_vpid(5);
++	// mark out this part since there are still issues of kthread desctuct
++	/*printk(KERN_NOTICE "Akai: stopping %s \n", p1->comm);
++	kthread_stop(p1);
++	printk(KERN_NOTICE "Akai: stopping %s \n", p2->comm);
++	kthread_stop(p2);
++	printk(KERN_NOTICE "Akai: stopping %s \n", p3->comm);
++	kthread_stop(p3);*/
++
++	//usleep(1000);
++	// print out the list again to see if the kthreads are successfully terminated
++	//print_task_info();
+ 
+ 	/* Call into cpu_idle with preempt disabled */
+ 	cpu_startup_entry(CPUHP_ONLINE);
+diff --git a/hw6/kernel/softirq.c b/hw6/kernel/softirq.c
+index f74268f..c5d30bc 100644
+--- a/hw6/kernel/softirq.c
++++ b/hw6/kernel/softirq.c
+@@ -26,6 +26,8 @@
+ #include <linux/smpboot.h>
+ #include <linux/tick.h>
+ #include <linux/irq.h>
++#include <linux/delay.h>	/* for sleep function */
++#include <linux/string.h>	/* for strcmp() */
+ 
+ #define CREATE_TRACE_POINTS
+ #include <trace/events/irq.h>
+@@ -762,6 +764,37 @@ static __init int spawn_ksoftirqd(void)
+ }
+ early_initcall(spawn_ksoftirqd);
+ 
++// neccessary function for smp_hotplug_thread task
++// this function will be checked before actually running the thread
++// in this case we always return 1 because we don't need to wait for soft interrupts
++static int Akai_hotplug_should_run(unsigned int cpu) {
++	return 1;
++}
++
++// hotplug thread, print out the information when running
++static void Akai_run_hotplug(unsigned int cpu) {
++	while(1) {
++		printk(KERN_NOTICE "Akai: Akai hotplugd %d is up and running \n", cpu);
++		msleep(20000);
++	}
++}
++
++// only 1 CPU in this virtual machine, so only 1 hotplug thread would be spawned
++DEFINE_PER_CPU(struct task_struct *, Akai_hotplugd);
++static struct smp_hotplug_thread Akai_hotplug_threads = {
++        .store                  = &Akai_hotplugd,
++        .thread_should_run      = Akai_hotplug_should_run,
++        .thread_fn              = Akai_run_hotplug,
++        .thread_comm            = "Akai_hotplugd/%u",
++};
++
++static __init int spawn_akai_hotplug_threads(void){
++        BUG_ON(smpboot_register_percpu_thread(&Akai_hotplug_threads));
++        printk(KERN_INFO "Akai: creating smpboot hotplug threads \n");
++        return 0;
++}
++early_initcall(spawn_akai_hotplug_threads);
++
+ /*
+  * [ These __weak aliases are kept in a separate compilation unit, so that
+  *   GCC does not inline them incorrectly. ]

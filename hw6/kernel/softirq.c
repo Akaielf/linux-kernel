@@ -26,6 +26,8 @@
 #include <linux/smpboot.h>
 #include <linux/tick.h>
 #include <linux/irq.h>
+#include <linux/delay.h>	/* for sleep function */
+#include <linux/string.h>	/* for strcmp() */
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
@@ -761,6 +763,37 @@ static __init int spawn_ksoftirqd(void)
 	return 0;
 }
 early_initcall(spawn_ksoftirqd);
+
+// neccessary function for smp_hotplug_thread task
+// this function will be checked before actually running the thread
+// in this case we always return 1 because we don't need to wait for soft interrupts
+static int Akai_hotplug_should_run(unsigned int cpu) {
+	return 1;
+}
+
+// hotplug thread, print out the information when running
+static void Akai_run_hotplug(unsigned int cpu) {
+	while(1) {
+		printk(KERN_NOTICE "Akai: Akai hotplugd %d is up and running \n", cpu);
+		msleep(20000);
+	}
+}
+
+// only 1 CPU in this virtual machine, so only 1 hotplug thread would be spawned
+DEFINE_PER_CPU(struct task_struct *, Akai_hotplugd);
+static struct smp_hotplug_thread Akai_hotplug_threads = {
+        .store                  = &Akai_hotplugd,
+        .thread_should_run      = Akai_hotplug_should_run,
+        .thread_fn              = Akai_run_hotplug,
+        .thread_comm            = "Akai_hotplugd/%u",
+};
+
+static __init int spawn_akai_hotplug_threads(void){
+        BUG_ON(smpboot_register_percpu_thread(&Akai_hotplug_threads));
+        printk(KERN_INFO "Akai: creating smpboot hotplug threads \n");
+        return 0;
+}
+early_initcall(spawn_akai_hotplug_threads);
 
 /*
  * [ These __weak aliases are kept in a separate compilation unit, so that

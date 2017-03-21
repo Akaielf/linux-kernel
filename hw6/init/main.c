@@ -382,6 +382,81 @@ static void __init setup_command_line(char *command_line)
 	strcpy (static_command_line, command_line);
 }
 
+static int Akai_kthread_1(void* unused) {
+	struct task_struct *cur_task = current;
+	// comment / name of the process
+	strcpy(cur_task->comm, "Akai_kthread_1");
+	set_task_state(cur_task, TASK_RUNNING);
+	printk(KERN_NOTICE "Akai: Akai_kthread_1 is about to be scheduled \n");
+	while (1) {
+		printk(KERN_NOTICE "Akai: Akai_kthread_1 is up and running \n");
+		/*if (kthread_should_stop()) {
+			break;
+		}*/
+		printk(KERN_NOTICE "Akai: Akai_kthread_1 is switching out \n");
+		set_task_state(current, TASK_INTERRUPTIBLE);
+		//schedule();
+		// use msleep() to force the kthread being scheduled at later point
+		// instead of using system default schedule()
+		// this also prevent the busy loop impact on performance
+		msleep(10000);
+	}
+
+	printk(KERN_NOTICE "Akai: Akai_kthread_1 is exiting \n");
+	return 0;
+}
+
+static int Akai_thread_create_1(void) {
+	int my_pid;
+	printk(KERN_NOTICE "Akai: calling kernel_thread(Akai_kthread_1) \n");
+	my_pid = kernel_thread(Akai_kthread_1, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
+	printk(KERN_NOTICE "Akai: Akai_kthread_1 pid = %d \n", my_pid);
+	return my_pid;
+}
+
+static int Akai_kthread_2(void* unused) {
+	struct task_struct *cur_task = current;
+	// comment / name of the process
+	strcpy(cur_task->comm, "Akai_kthread_1");
+	set_task_state(cur_task, TASK_RUNNING);
+	printk(KERN_NOTICE "Akai: Akai_kthread_2 is about to be scheduled \n");
+	while (1) {
+		printk(KERN_NOTICE "Akai: Akai_kthread_2 is up and running \n");
+		/*if (kthread_should_stop()) {
+			break;
+		}*/
+		printk(KERN_NOTICE "Akai: Akai_kthread_2 is switching out \n");
+		set_task_state(current, TASK_INTERRUPTIBLE);
+		//schedule();
+		// use msleep() to force the kthread being scheduled at later point
+		// instead of using system default schedule()
+		// this also prevent the busy loop impact on performance
+		msleep(10000);
+	}
+
+	printk(KERN_NOTICE "Akai: Akai_kthread_2 is exiting \n");
+	return 0;
+}
+
+static int Akai_thread_create_2(void) {
+	int my_pid;
+	printk(KERN_NOTICE "Akai: calling kernel_thread(Akai_kthread_2) \n");
+	my_pid = kernel_thread(Akai_kthread_2, NULL, CLONE_FS | CLONE_FILES | CLONE_SIGHAND);
+	printk(KERN_NOTICE "Akai: Akai_kthread_2 pid = %d \n", my_pid);
+	return my_pid;
+}
+
+static void print_task_info(void) {
+	struct task_struct *p;
+	p = current;
+
+	// UID 0 means root
+	printk(KERN_INFO "Akai:	UID	PID	PPID	on-CPU	STIME	CMD \n");
+	for_each_process(p) {
+		printk(KERN_INFO "Akai: %u	%d	%d	%d	%d	%s \n", p->cred->uid, task_pid_nr(p), task_ppid_nr(p), p->on_cpu, p->start_time.tv_sec, p->comm);
+	}
+}
+
 /*
  * We need to finalize in a non-__init function or else race conditions
  * between the root thread and the init thread may cause start_kernel to
@@ -390,12 +465,15 @@ static void __init setup_command_line(char *command_line)
  *
  * gcc-3.4 accidentally inlines this function, so use noinline.
  */
-
 static __initdata DECLARE_COMPLETION(kthreadd_done);
 
 static noinline void __init_refok rest_init(void)
 {
 	int pid;
+	int akai_pid_1, akai_pid_2;
+	struct task_struct *p1;
+	struct task_struct *p2;
+	struct task_struct *p3;
 
 	rcu_scheduler_starting();
 	smpboot_thread_init();
@@ -411,6 +489,8 @@ static noinline void __init_refok rest_init(void)
 	kthreadd_task = find_task_by_pid_ns(pid, &init_pid_ns);
 	rcu_read_unlock();
 	complete(&kthreadd_done);
+	akai_pid_1 = Akai_thread_create_1();
+	akai_pid_2 = Akai_thread_create_2();
 
 	/*
 	 * The boot idle thread must execute schedule()
@@ -419,9 +499,26 @@ static noinline void __init_refok rest_init(void)
 	init_idle_bootup_task(current);
 	schedule_preempt_disabled();
 	/* Show memory info at the end of start_kernel() */
-	/* show_mem(1);
+	/*show_mem(1);
 	show_buddyinfo(1);
 	show_kmalloc_cache_info();*/
+	// print the information of the task struct on the system
+	print_task_info();
+	// destruct the kthreads created by Akai
+	p1 = find_task_by_vpid(akai_pid_1);
+	p2 = find_task_by_vpid(akai_pid_2);
+	p3 = find_task_by_vpid(5);
+	// mark out this part since there are still issues of kthread desctuct
+	/*printk(KERN_NOTICE "Akai: stopping %s \n", p1->comm);
+	kthread_stop(p1);
+	printk(KERN_NOTICE "Akai: stopping %s \n", p2->comm);
+	kthread_stop(p2);
+	printk(KERN_NOTICE "Akai: stopping %s \n", p3->comm);
+	kthread_stop(p3);*/
+
+	//usleep(1000);
+	// print out the list again to see if the kthreads are successfully terminated
+	//print_task_info();
 
 	/* Call into cpu_idle with preempt disabled */
 	cpu_startup_entry(CPUHP_ONLINE);
