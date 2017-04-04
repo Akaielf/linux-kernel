@@ -1,0 +1,4 @@
+make deb-pkg LOCALVERSION=-falcot KDEB_PKGVERSION=$(make kernelversion)-1
+sudo dpkg -i linux-image-3.16.39-falcot_3.16.39-2_amd64.deb
+
+for each kthread print out the information before and after creation/swapped in
