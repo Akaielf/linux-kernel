@@ -1,0 +1,84 @@
+diff --git a/hw7/kernel/fork.c b/hw7/kernel/fork.c
+index 43f707e..e81d8d2 100644
+--- a/hw7/kernel/fork.c
++++ b/hw7/kernel/fork.c
+@@ -74,6 +74,7 @@
+ #include <linux/uprobes.h>
+ #include <linux/aio.h>
+ #include <linux/compiler.h>
++#include <linux/time.h>
+ 
+ #include <asm/pgtable.h>
+ #include <asm/pgalloc.h>
+@@ -1655,8 +1656,19 @@ long do_fork(unsigned long clone_flags,
+  */
+ pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
+ {
+-	return do_fork(flags|CLONE_VM|CLONE_UNTRACED, (unsigned long)fn,
+-		(unsigned long)arg, NULL, NULL);
++	pid_t ret;
++	struct timespec ts;
++	struct task_struct *p;
++
++	ret = do_fork(flags|CLONE_VM|CLONE_UNTRACED, (unsigned long)fn,
++                (unsigned long)arg, NULL, NULL);
++	if (ret <= 35) {
++		getnstimeofday(&ts);
++		p = find_task_by_vpid(ret);
++		printk(KERN_INFO "Akai: current time: %ld (ns) \n", ts.tv_nsec);
++		printk(KERN_INFO "Akai: created new kthread PID: %d, name = %s \n\n", ret, p->comm);
++	}
++	return ret;
+ }
+ 
+ #ifdef __ARCH_WANT_SYS_FORK
+diff --git a/hw7/kernel/kthread.c b/hw7/kernel/kthread.c
+index c2390f4..30e5ebc 100644
+--- a/hw7/kernel/kthread.c
++++ b/hw7/kernel/kthread.c
+@@ -486,6 +486,7 @@ int kthreadd(void *unused)
+ 
+ 	/* Setup a clean context for our children to inherit. */
+ 	set_task_comm(tsk, "kthreadd");
++	printk(KERN_INFO "Akai: PID 2 changed its name to \"kthreadd\" \n");
+ 	ignore_signals(tsk);
+ 	set_cpus_allowed_ptr(tsk, cpu_all_mask);
+ 	set_mems_allowed(node_states[N_MEMORY]);
+@@ -507,6 +508,8 @@ int kthreadd(void *unused)
+ 			list_del_init(&create->list);
+ 			spin_unlock(&kthread_create_lock);
+ 
++			// print out the new kthread task information here
++			printk(KERN_INFO "Akai: creating new kthread in kthreadd() \n");
+ 			create_kthread(create);
+ 
+ 			spin_lock(&kthread_create_lock);
+diff --git a/hw7/kernel/sched/core.c b/hw7/kernel/sched/core.c
+index f2c0bcc..68ec3c0 100644
+--- a/hw7/kernel/sched/core.c
++++ b/hw7/kernel/sched/core.c
+@@ -2797,6 +2797,7 @@ static void __sched __schedule(void)
+ 	unsigned long *switch_count;
+ 	struct rq *rq;
+ 	int cpu;
++	struct timespec ts;
+ 
+ need_resched:
+ 	preempt_disable();
+@@ -2854,7 +2855,15 @@ need_resched:
+ 		rq->nr_switches++;
+ 		rq->curr = next;
+ 		++*switch_count;
+-
++		if (rq->nr_switches <= 100) {
++			getnstimeofday(&ts);
++			printk(KERN_INFO "Akai: runqueues->nr_switches: %llu \n", rq->nr_switches);
++			printk(KERN_INFO "Akai: current time = %ld (ns), entering context_switch() \n", ts.tv_nsec);
++			// the executed kthread would be renamed to its own name at some point
++			printk(KERN_INFO "Akai: from PID: %d, name: %s \n", prev->pid, prev->comm);
++			// if the kthread hasn't been executed yet, it may still have the parent's name here
++			printk(KERN_INFO "Akai: to PID: %d, name: %s \n\n", next->pid, next->comm);
++		}
+ 		context_switch(rq, prev, next); /* unlocks the rq */
+ 		/*
+ 		 * The context switch have flipped the stack from under us

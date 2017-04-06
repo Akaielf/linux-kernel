@@ -486,6 +486,7 @@ int kthreadd(void *unused)
 
 	/* Setup a clean context for our children to inherit. */
 	set_task_comm(tsk, "kthreadd");
+	printk(KERN_INFO "Akai: PID 2 changed its name to \"kthreadd\" \n");
 	ignore_signals(tsk);
 	set_cpus_allowed_ptr(tsk, cpu_all_mask);
 	set_mems_allowed(node_states[N_MEMORY]);
@@ -507,6 +508,8 @@ int kthreadd(void *unused)
 			list_del_init(&create->list);
 			spin_unlock(&kthread_create_lock);
 
+			// print out the new kthread task information here
+			printk(KERN_INFO "Akai: creating new kthread in kthreadd() \n");
 			create_kthread(create);
 
 			spin_lock(&kthread_create_lock);

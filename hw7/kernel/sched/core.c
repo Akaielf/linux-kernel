@@ -2797,6 +2797,7 @@ static void __sched __schedule(void)
 	unsigned long *switch_count;
 	struct rq *rq;
 	int cpu;
+	struct timespec ts;
 
 need_resched:
 	preempt_disable();
@@ -2854,7 +2855,15 @@ need_resched:
 		rq->nr_switches++;
 		rq->curr = next;
 		++*switch_count;
-
+		if (rq->nr_switches <= 100) {
+			getnstimeofday(&ts);
+			printk(KERN_INFO "Akai: runqueues->nr_switches: %llu \n", rq->nr_switches);
+			printk(KERN_INFO "Akai: current time = %ld (ns), entering context_switch() \n", ts.tv_nsec);
+			// the executed kthread would be renamed to its own name at some point
+			printk(KERN_INFO "Akai: from PID: %d, name: %s \n", prev->pid, prev->comm);
+			// if the kthread hasn't been executed yet, it may still have the parent's name here
+			printk(KERN_INFO "Akai: to PID: %d, name: %s \n\n", next->pid, next->comm);
+		}
 		context_switch(rq, prev, next); /* unlocks the rq */
 		/*
 		 * The context switch have flipped the stack from under us

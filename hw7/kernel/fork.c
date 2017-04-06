@@ -74,6 +74,7 @@
 #include <linux/uprobes.h>
 #include <linux/aio.h>
 #include <linux/compiler.h>
+#include <linux/time.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -1655,8 +1656,19 @@ long do_fork(unsigned long clone_flags,
  */
 pid_t kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 {
-	return do_fork(flags|CLONE_VM|CLONE_UNTRACED, (unsigned long)fn,
-		(unsigned long)arg, NULL, NULL);
+	pid_t ret;
+	struct timespec ts;
+	struct task_struct *p;
+
+	ret = do_fork(flags|CLONE_VM|CLONE_UNTRACED, (unsigned long)fn,
+                (unsigned long)arg, NULL, NULL);
+	if (ret <= 35) {
+		getnstimeofday(&ts);
+		p = find_task_by_vpid(ret);
+		printk(KERN_INFO "Akai: current time: %ld (ns) \n", ts.tv_nsec);
+		printk(KERN_INFO "Akai: created new kthread PID: %d, name = %s \n\n", ret, p->comm);
+	}
+	return ret;
 }
 
 #ifdef __ARCH_WANT_SYS_FORK
