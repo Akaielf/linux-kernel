@@ -11,7 +11,7 @@ Huffman coding:
 2. The testing flow is as suggested in the Programming Project Logistics:
    % cp p1610s17.pdf file1
    % ./henc6044 file1		// file1 would be automatically removed at this step
-   % ./hdec6044 file1.huf
+   % ./hdec6044 file1.huf       // file1.huf would be automatically removed at this step
    % diff p1610s16.tex file1
    % md5sum p1610s16.tex file1
 3. The program would create buffers for input file and output file in memory, 
@@ -29,7 +29,8 @@ Huffman coding:
    of Linux system.
 6. In the step of executing '% ./hdec6044 file1.huf', the encoded file1.huf will be removed and
    the decoded file1 will be created. Note we have an assumption the input encoded file name
-   is ending with ".huf". And the length of input file name should be at least 5 characters long.
-   (considering ".huf" taking 4 characters already)
-
+   is ending with ".huf". And the length of input file name should be at least 5 characters long
+   (considering ".huf" taking 4 characters already).
+7. Most printf logs are for debugging and will be marked as comments in submitted source codes except
+   those important messages and errors.
 
