@@ -1,0 +1,35 @@
+Bug report by Kai Chen, Hsieh, NJIT ID 31396044
+
+Compiler version: gcc v4.9.2
+
+Tested on platform: confirmed the code is working on afsconnect1.njit.edu
+
+Huffman coding:
+1. The Huffman coding solution consist of henc6044.c and hdec6044.c. 
+   Please use 'gcc henc6044.c -o henc6044' and 'gcc hdec6044.c -o hdec6044'
+   to compile the source codes into executables.
+2. The testing flow is as suggested in the Programming Project Logistics:
+   % cp p1610s17.pdf file1
+   % ./henc6044 file1		// file1 would be automatically removed at this step
+   % ./hdec6044 file1.huf
+   % diff p1610s16.tex file1
+   % md5sum p1610s16.tex file1
+3. The program would create buffers for input file and output file in memory, 
+   so typically the encoding file (input) should not excess the space size of 50% system
+   memory in order to prevent out of memory condition. It is a limitation of the program.
+4. The Huffman codes are stored in 32-bit length varibles (int). This means if the 
+   Huffman binary tree is extremely unbalanced, say more than 32 degree depth, the Huffman
+   codes in our implement would loss information due to the varible length limitation.
+   In above condition, the symbol frequencies appear in the encoding file
+   would be something like: 1, 2, 4, 8 ... 2^31 + ... each symbol is 1 byte long.
+   Which leads to a file larger than 4GB. In this case we may want to limit the encoding (input)
+   file under 4GB size limitation to ensure the code length of under 32-bit.
+5. In the step of executing '% ./henc6044 file1', the encoded file1.huf will be created and
+   the input file1 will be removed. The length of file names should not excess the limitation
+   of Linux system.
+6. In the step of executing '% ./hdec6044 file1.huf', the encoded file1.huf will be removed and
+   the decoded file1 will be created. Note we have an assumption the input encoded file name
+   is ending with ".huf". And the length of input file name should be at least 5 characters long.
+   (considering ".huf" taking 4 characters already)
+
+
