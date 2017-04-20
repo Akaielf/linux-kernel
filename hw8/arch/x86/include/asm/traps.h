@@ -8,6 +8,7 @@
 
 #define dotraplinkage __visible
 
+asmlinkage void my_divide_error(void);
 asmlinkage void divide_error(void);
 asmlinkage void debug(void);
 asmlinkage void nmi(void);
@@ -40,6 +41,7 @@ asmlinkage void simd_coprocessor_error(void);
 #ifdef CONFIG_TRACING
 asmlinkage void trace_page_fault(void);
 #define trace_stack_segment stack_segment
+#define trace_my_divide_error my_divide_error
 #define trace_divide_error divide_error
 #define trace_bounds bounds
 #define trace_invalid_op invalid_op
@@ -55,6 +57,7 @@ asmlinkage void trace_page_fault(void);
 #define trace_async_page_fault async_page_fault
 #endif
 
+dotraplinkage void do_my_divide_error(struct pt_regs *, long);
 dotraplinkage void do_divide_error(struct pt_regs *, long);
 dotraplinkage void do_debug(struct pt_regs *, long);
 dotraplinkage void do_nmi(struct pt_regs *, long);
@@ -132,6 +135,7 @@ enum {
 	X86_TRAP_AC,		/* 17, Alignment Check */
 	X86_TRAP_MC,		/* 18, Machine Check */
 	X86_TRAP_XF,		/* 19, SIMD Floating-Point Exception */
+	X86_TRAP_TR_DE,		/* 20, Moved the original divide error here */
 	X86_TRAP_IRET = 32,	/* 32, IRET Exception */
 };
 

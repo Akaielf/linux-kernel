@@ -111,6 +111,7 @@ static nokprobe_inline int
 do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
 		  struct pt_regs *regs,	long error_code)
 {
+	printk(KERN_INFO "Akai: inside do_trap_no_signal \n");
 #ifdef CONFIG_X86_32
 	if (regs->flags & X86_VM_MASK) {
 		/*
@@ -118,6 +119,7 @@ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
 		 * On nmi (interrupt 2), do_trap should not be called.
 		 */
 		if (trapnr < X86_TRAP_UD) {
+			printk(KERN_INFO "Akai: forwarding to vm86 \n");
 			if (!handle_vm86_trap((struct kernel_vm86_regs *) regs,
 						error_code, trapnr))
 				return 0;
@@ -126,6 +128,7 @@ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
 	}
 #endif
 	if (!user_mode(regs)) {
+		printk(KERN_INFO "Akai: not user mode, calling fixup_exception \n");
 		if (!fixup_exception(regs)) {
 			tsk->thread.error_code = error_code;
 			tsk->thread.trap_nr = trapnr;
@@ -148,6 +151,7 @@ static siginfo_t *fill_trap_info(struct pt_regs *regs, int signr, int trapnr,
 		return SEND_SIG_PRIV;
 
 	case X86_TRAP_DE:
+		printk(KERN_INFO "Akai: inside fill_trap_info \n");
 		sicode = FPE_INTDIV;
 		siaddr = uprobe_get_trap_addr(regs);
 		break;
@@ -210,6 +214,7 @@ static void do_error_trap(struct pt_regs *regs, long error_code, char *str,
 	enum ctx_state prev_state = exception_enter();
 	siginfo_t info;
 
+	printk(KERN_INFO "Akai: inside do_error_trap() \n");
 	if (notify_die(DIE_TRAP, str, regs, error_code, trapnr, signr) !=
 			NOTIFY_STOP) {
 		conditional_sti(regs);
@@ -226,7 +231,8 @@ dotraplinkage void do_##name(struct pt_regs *regs, long error_code)	\
 	do_error_trap(regs, error_code, str, trapnr, signr);		\
 }
 
-DO_ERROR(X86_TRAP_DE,     SIGFPE,  "divide error",		divide_error)
+// change the IDT location of original divide error and replaced with our own handlers
+DO_ERROR(X86_TRAP_TR_DE,  SIGFPE,  "divide error",		divide_error)
 DO_ERROR(X86_TRAP_OF,     SIGSEGV, "overflow",			overflow)
 DO_ERROR(X86_TRAP_BR,     SIGSEGV, "bounds",			bounds)
 DO_ERROR(X86_TRAP_UD,     SIGILL,  "invalid opcode",		invalid_op)
@@ -235,6 +241,17 @@ DO_ERROR(X86_TRAP_TS,     SIGSEGV, "invalid TSS",		invalid_TSS)
 DO_ERROR(X86_TRAP_NP,     SIGBUS,  "segment not present",	segment_not_present)
 DO_ERROR(X86_TRAP_SS,     SIGBUS,  "stack segment",		stack_segment)
 DO_ERROR(X86_TRAP_AC,     SIGBUS,  "alignment check",		alignment_check)
+
+// our own C handler for the divide error trap
+// it calls the original divide error handler at the end
+dotraplinkage void do_my_divide_error(struct pt_regs *regs, long error_code)
+{
+	printk(KERN_INFO "Akai: C handler do_my_divide_error() is activated \n");
+	printk(KERN_INFO "Akai: machine is mine ~ muhahahaha ~ \n");
+
+	// call the original error handler
+	do_error_trap(regs, error_code, "divide error", X86_TRAP_DE, SIGFPE);
+}
 
 #ifdef CONFIG_X86_64
 /* Runs on IST stack */
@@ -802,7 +819,9 @@ void __init trap_init(void)
 #endif
 
 	printk(KERN_INFO "Kai Chen, Hsieh: trap_init(): initialize traps \n");
-	set_intr_gate(X86_TRAP_DE, divide_error);
+	// our own divide error handler
+	set_intr_gate(X86_TRAP_DE, my_divide_error);
+	set_intr_gate(X86_TRAP_TR_DE, divide_error);
 	set_intr_gate_ist(X86_TRAP_NMI, &nmi, NMI_STACK);
 	/* int4 can be called from all */
 	set_system_intr_gate(X86_TRAP_OF, &overflow);

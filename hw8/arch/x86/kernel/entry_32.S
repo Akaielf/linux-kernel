@@ -923,6 +923,15 @@ ENTRY(alignment_check)
 	CFI_ENDPROC
 END(alignment_check)
 
+ENTRY(my_divide_error)
+	RING0_INT_FRAME
+	ASM_CLAC
+	pushl_cfi $0			# no error code
+	pushl_cfi $do_my_divide_error
+	jmp error_code
+	CFI_ENDPROC
+END(my_divide_error)
+
 ENTRY(divide_error)
 	RING0_INT_FRAME
 	ASM_CLAC

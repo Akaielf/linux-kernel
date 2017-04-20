@@ -1110,6 +1110,7 @@ idtentry \sym \do_sym has_error_code=\has_error_code
 .endm
 #endif
 
+idtentry my_divide_error do_my_divide_error has_error_code=0
 idtentry divide_error do_divide_error has_error_code=0
 idtentry overflow do_overflow has_error_code=0
 idtentry bounds do_bounds has_error_code=0
