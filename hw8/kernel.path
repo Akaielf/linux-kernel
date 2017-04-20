@@ -1,0 +1,320 @@
+diff --git a/hw8/arch/x86/include/asm/traps.h b/hw8/arch/x86/include/asm/traps.h
+index 707adc6..6315aef 100644
+--- a/hw8/arch/x86/include/asm/traps.h
++++ b/hw8/arch/x86/include/asm/traps.h
+@@ -8,6 +8,7 @@
+ 
+ #define dotraplinkage __visible
+ 
++asmlinkage void my_divide_error(void);
+ asmlinkage void divide_error(void);
+ asmlinkage void debug(void);
+ asmlinkage void nmi(void);
+@@ -40,6 +41,7 @@ asmlinkage void simd_coprocessor_error(void);
+ #ifdef CONFIG_TRACING
+ asmlinkage void trace_page_fault(void);
+ #define trace_stack_segment stack_segment
++#define trace_my_divide_error my_divide_error
+ #define trace_divide_error divide_error
+ #define trace_bounds bounds
+ #define trace_invalid_op invalid_op
+@@ -55,6 +57,7 @@ asmlinkage void trace_page_fault(void);
+ #define trace_async_page_fault async_page_fault
+ #endif
+ 
++dotraplinkage void do_my_divide_error(struct pt_regs *, long);
+ dotraplinkage void do_divide_error(struct pt_regs *, long);
+ dotraplinkage void do_debug(struct pt_regs *, long);
+ dotraplinkage void do_nmi(struct pt_regs *, long);
+@@ -132,6 +135,7 @@ enum {
+ 	X86_TRAP_AC,		/* 17, Alignment Check */
+ 	X86_TRAP_MC,		/* 18, Machine Check */
+ 	X86_TRAP_XF,		/* 19, SIMD Floating-Point Exception */
++	X86_TRAP_TR_DE,		/* 20, Moved the original divide error here */
+ 	X86_TRAP_IRET = 32,	/* 32, IRET Exception */
+ };
+ 
+diff --git a/hw8/arch/x86/kernel/entry_32.S b/hw8/arch/x86/kernel/entry_32.S
+index 0d0c9d4..0bf27ab 100644
+--- a/hw8/arch/x86/kernel/entry_32.S
++++ b/hw8/arch/x86/kernel/entry_32.S
+@@ -923,6 +923,15 @@ ENTRY(alignment_check)
+ 	CFI_ENDPROC
+ END(alignment_check)
+ 
++ENTRY(my_divide_error)
++	RING0_INT_FRAME
++	ASM_CLAC
++	pushl_cfi $0			# no error code
++	pushl_cfi $do_my_divide_error
++	jmp error_code
++	CFI_ENDPROC
++END(my_divide_error)
++
+ ENTRY(divide_error)
+ 	RING0_INT_FRAME
+ 	ASM_CLAC
+diff --git a/hw8/arch/x86/kernel/entry_64.S b/hw8/arch/x86/kernel/entry_64.S
+index e9e9e12..518b7bd 100644
+--- a/hw8/arch/x86/kernel/entry_64.S
++++ b/hw8/arch/x86/kernel/entry_64.S
+@@ -1110,6 +1110,7 @@ idtentry \sym \do_sym has_error_code=\has_error_code
+ .endm
+ #endif
+ 
++idtentry my_divide_error do_my_divide_error has_error_code=0
+ idtentry divide_error do_divide_error has_error_code=0
+ idtentry overflow do_overflow has_error_code=0
+ idtentry bounds do_bounds has_error_code=0
+diff --git a/hw8/arch/x86/kernel/traps.c b/hw8/arch/x86/kernel/traps.c
+index b4ae257..572cc0f 100644
+--- a/hw8/arch/x86/kernel/traps.c
++++ b/hw8/arch/x86/kernel/traps.c
+@@ -111,6 +111,7 @@ static nokprobe_inline int
+ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
+ 		  struct pt_regs *regs,	long error_code)
+ {
++	printk(KERN_INFO "Akai: inside do_trap_no_signal \n");
+ #ifdef CONFIG_X86_32
+ 	if (regs->flags & X86_VM_MASK) {
+ 		/*
+@@ -118,6 +119,7 @@ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
+ 		 * On nmi (interrupt 2), do_trap should not be called.
+ 		 */
+ 		if (trapnr < X86_TRAP_UD) {
++			printk(KERN_INFO "Akai: forwarding to vm86 \n");
+ 			if (!handle_vm86_trap((struct kernel_vm86_regs *) regs,
+ 						error_code, trapnr))
+ 				return 0;
+@@ -126,6 +128,7 @@ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
+ 	}
+ #endif
+ 	if (!user_mode(regs)) {
++		printk(KERN_INFO "Akai: not user mode, calling fixup_exception \n");
+ 		if (!fixup_exception(regs)) {
+ 			tsk->thread.error_code = error_code;
+ 			tsk->thread.trap_nr = trapnr;
+@@ -148,6 +151,7 @@ static siginfo_t *fill_trap_info(struct pt_regs *regs, int signr, int trapnr,
+ 		return SEND_SIG_PRIV;
+ 
+ 	case X86_TRAP_DE:
++		printk(KERN_INFO "Akai: inside fill_trap_info \n");
+ 		sicode = FPE_INTDIV;
+ 		siaddr = uprobe_get_trap_addr(regs);
+ 		break;
+@@ -210,6 +214,7 @@ static void do_error_trap(struct pt_regs *regs, long error_code, char *str,
+ 	enum ctx_state prev_state = exception_enter();
+ 	siginfo_t info;
+ 
++	printk(KERN_INFO "Akai: inside do_error_trap() \n");
+ 	if (notify_die(DIE_TRAP, str, regs, error_code, trapnr, signr) !=
+ 			NOTIFY_STOP) {
+ 		conditional_sti(regs);
+@@ -226,7 +231,8 @@ dotraplinkage void do_##name(struct pt_regs *regs, long error_code)	\
+ 	do_error_trap(regs, error_code, str, trapnr, signr);		\
+ }
+ 
+-DO_ERROR(X86_TRAP_DE,     SIGFPE,  "divide error",		divide_error)
++// change the IDT location of original divide error and replaced with our own handlers
++DO_ERROR(X86_TRAP_TR_DE,  SIGFPE,  "divide error",		divide_error)
+ DO_ERROR(X86_TRAP_OF,     SIGSEGV, "overflow",			overflow)
+ DO_ERROR(X86_TRAP_BR,     SIGSEGV, "bounds",			bounds)
+ DO_ERROR(X86_TRAP_UD,     SIGILL,  "invalid opcode",		invalid_op)
+@@ -236,6 +242,17 @@ DO_ERROR(X86_TRAP_NP,     SIGBUS,  "segment not present",	segment_not_present)
+ DO_ERROR(X86_TRAP_SS,     SIGBUS,  "stack segment",		stack_segment)
+ DO_ERROR(X86_TRAP_AC,     SIGBUS,  "alignment check",		alignment_check)
+ 
++// our own C handler for the divide error trap
++// it calls the original divide error handler at the end
++dotraplinkage void do_my_divide_error(struct pt_regs *regs, long error_code)
++{
++	printk(KERN_INFO "Akai: C handler do_my_divide_error() is activated \n");
++	printk(KERN_INFO "Akai: machine is mine ~ muhahahaha ~ \n");
++
++	// call the original error handler
++	do_error_trap(regs, error_code, "divide error", X86_TRAP_DE, SIGFPE);
++}
++
+ #ifdef CONFIG_X86_64
+ /* Runs on IST stack */
+ dotraplinkage void do_double_fault(struct pt_regs *regs, long error_code)
+@@ -802,7 +819,9 @@ void __init trap_init(void)
+ #endif
+ 
+ 	printk(KERN_INFO "Kai Chen, Hsieh: trap_init(): initialize traps \n");
+-	set_intr_gate(X86_TRAP_DE, divide_error);
++	// our own divide error handler
++	set_intr_gate(X86_TRAP_DE, my_divide_error);
++	set_intr_gate(X86_TRAP_TR_DE, divide_error);
+ 	set_intr_gate_ist(X86_TRAP_NMI, &nmi, NMI_STACK);
+ 	/* int4 can be called from all */
+ 	set_system_intr_gate(X86_TRAP_OF, &overflow);
+diff --git a/hw8/arch/x86/include/asm/traps.h b/hw8/arch/x86/include/asm/traps.h
+index 707adc6..6315aef 100644
+--- a/hw8/arch/x86/include/asm/traps.h
++++ b/hw8/arch/x86/include/asm/traps.h
+@@ -8,6 +8,7 @@
+ 
+ #define dotraplinkage __visible
+ 
++asmlinkage void my_divide_error(void);
+ asmlinkage void divide_error(void);
+ asmlinkage void debug(void);
+ asmlinkage void nmi(void);
+@@ -40,6 +41,7 @@ asmlinkage void simd_coprocessor_error(void);
+ #ifdef CONFIG_TRACING
+ asmlinkage void trace_page_fault(void);
+ #define trace_stack_segment stack_segment
++#define trace_my_divide_error my_divide_error
+ #define trace_divide_error divide_error
+ #define trace_bounds bounds
+ #define trace_invalid_op invalid_op
+@@ -55,6 +57,7 @@ asmlinkage void trace_page_fault(void);
+ #define trace_async_page_fault async_page_fault
+ #endif
+ 
++dotraplinkage void do_my_divide_error(struct pt_regs *, long);
+ dotraplinkage void do_divide_error(struct pt_regs *, long);
+ dotraplinkage void do_debug(struct pt_regs *, long);
+ dotraplinkage void do_nmi(struct pt_regs *, long);
+@@ -132,6 +135,7 @@ enum {
+ 	X86_TRAP_AC,		/* 17, Alignment Check */
+ 	X86_TRAP_MC,		/* 18, Machine Check */
+ 	X86_TRAP_XF,		/* 19, SIMD Floating-Point Exception */
++	X86_TRAP_TR_DE,		/* 20, Moved the original divide error here */
+ 	X86_TRAP_IRET = 32,	/* 32, IRET Exception */
+ };
+ 
+diff --git a/hw8/arch/x86/kernel/entry_32.S b/hw8/arch/x86/kernel/entry_32.S
+index 0d0c9d4..0bf27ab 100644
+--- a/hw8/arch/x86/kernel/entry_32.S
++++ b/hw8/arch/x86/kernel/entry_32.S
+@@ -923,6 +923,15 @@ ENTRY(alignment_check)
+ 	CFI_ENDPROC
+ END(alignment_check)
+ 
++ENTRY(my_divide_error)
++	RING0_INT_FRAME
++	ASM_CLAC
++	pushl_cfi $0			# no error code
++	pushl_cfi $do_my_divide_error
++	jmp error_code
++	CFI_ENDPROC
++END(my_divide_error)
++
+ ENTRY(divide_error)
+ 	RING0_INT_FRAME
+ 	ASM_CLAC
+diff --git a/hw8/arch/x86/kernel/entry_64.S b/hw8/arch/x86/kernel/entry_64.S
+index e9e9e12..518b7bd 100644
+--- a/hw8/arch/x86/kernel/entry_64.S
++++ b/hw8/arch/x86/kernel/entry_64.S
+@@ -1110,6 +1110,7 @@ idtentry \sym \do_sym has_error_code=\has_error_code
+ .endm
+ #endif
+ 
++idtentry my_divide_error do_my_divide_error has_error_code=0
+ idtentry divide_error do_divide_error has_error_code=0
+ idtentry overflow do_overflow has_error_code=0
+ idtentry bounds do_bounds has_error_code=0
+diff --git a/hw8/arch/x86/kernel/traps.c b/hw8/arch/x86/kernel/traps.c
+index b4ae257..572cc0f 100644
+--- a/hw8/arch/x86/kernel/traps.c
++++ b/hw8/arch/x86/kernel/traps.c
+@@ -111,6 +111,7 @@ static nokprobe_inline int
+ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
+ 		  struct pt_regs *regs,	long error_code)
+ {
++	printk(KERN_INFO "Akai: inside do_trap_no_signal \n");
+ #ifdef CONFIG_X86_32
+ 	if (regs->flags & X86_VM_MASK) {
+ 		/*
+@@ -118,6 +119,7 @@ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
+ 		 * On nmi (interrupt 2), do_trap should not be called.
+ 		 */
+ 		if (trapnr < X86_TRAP_UD) {
++			printk(KERN_INFO "Akai: forwarding to vm86 \n");
+ 			if (!handle_vm86_trap((struct kernel_vm86_regs *) regs,
+ 						error_code, trapnr))
+ 				return 0;
+@@ -126,6 +128,7 @@ do_trap_no_signal(struct task_struct *tsk, int trapnr, char *str,
+ 	}
+ #endif
+ 	if (!user_mode(regs)) {
++		printk(KERN_INFO "Akai: not user mode, calling fixup_exception \n");
+ 		if (!fixup_exception(regs)) {
+ 			tsk->thread.error_code = error_code;
+ 			tsk->thread.trap_nr = trapnr;
+@@ -148,6 +151,7 @@ static siginfo_t *fill_trap_info(struct pt_regs *regs, int signr, int trapnr,
+ 		return SEND_SIG_PRIV;
+ 
+ 	case X86_TRAP_DE:
++		printk(KERN_INFO "Akai: inside fill_trap_info \n");
+ 		sicode = FPE_INTDIV;
+ 		siaddr = uprobe_get_trap_addr(regs);
+ 		break;
+@@ -210,6 +214,7 @@ static void do_error_trap(struct pt_regs *regs, long error_code, char *str,
+ 	enum ctx_state prev_state = exception_enter();
+ 	siginfo_t info;
+ 
++	printk(KERN_INFO "Akai: inside do_error_trap() \n");
+ 	if (notify_die(DIE_TRAP, str, regs, error_code, trapnr, signr) !=
+ 			NOTIFY_STOP) {
+ 		conditional_sti(regs);
+@@ -226,7 +231,8 @@ dotraplinkage void do_##name(struct pt_regs *regs, long error_code)	\
+ 	do_error_trap(regs, error_code, str, trapnr, signr);		\
+ }
+ 
+-DO_ERROR(X86_TRAP_DE,     SIGFPE,  "divide error",		divide_error)
++// change the IDT location of original divide error and replaced with our own handlers
++DO_ERROR(X86_TRAP_TR_DE,  SIGFPE,  "divide error",		divide_error)
+ DO_ERROR(X86_TRAP_OF,     SIGSEGV, "overflow",			overflow)
+ DO_ERROR(X86_TRAP_BR,     SIGSEGV, "bounds",			bounds)
+ DO_ERROR(X86_TRAP_UD,     SIGILL,  "invalid opcode",		invalid_op)
+@@ -236,6 +242,17 @@ DO_ERROR(X86_TRAP_NP,     SIGBUS,  "segment not present",	segment_not_present)
+ DO_ERROR(X86_TRAP_SS,     SIGBUS,  "stack segment",		stack_segment)
+ DO_ERROR(X86_TRAP_AC,     SIGBUS,  "alignment check",		alignment_check)
+ 
++// our own C handler for the divide error trap
++// it calls the original divide error handler at the end
++dotraplinkage void do_my_divide_error(struct pt_regs *regs, long error_code)
++{
++	printk(KERN_INFO "Akai: C handler do_my_divide_error() is activated \n");
++	printk(KERN_INFO "Akai: machine is mine ~ muhahahaha ~ \n");
++
++	// call the original error handler
++	do_error_trap(regs, error_code, "divide error", X86_TRAP_DE, SIGFPE);
++}
++
+ #ifdef CONFIG_X86_64
+ /* Runs on IST stack */
+ dotraplinkage void do_double_fault(struct pt_regs *regs, long error_code)
+@@ -802,7 +819,9 @@ void __init trap_init(void)
+ #endif
+ 
+ 	printk(KERN_INFO "Kai Chen, Hsieh: trap_init(): initialize traps \n");
+-	set_intr_gate(X86_TRAP_DE, divide_error);
++	// our own divide error handler
++	set_intr_gate(X86_TRAP_DE, my_divide_error);
++	set_intr_gate(X86_TRAP_TR_DE, divide_error);
+ 	set_intr_gate_ist(X86_TRAP_NMI, &nmi, NMI_STACK);
+ 	/* int4 can be called from all */
+ 	set_system_intr_gate(X86_TRAP_OF, &overflow);
+diff --git a/hw8/trigger_error.c b/hw8/trigger_error.c
+new file mode 100644
+index 0000000..666d4d9
+--- /dev/null
++++ b/hw8/trigger_error.c
+@@ -0,0 +1,12 @@
++#include <stdlib.h>
++#include <stdio.h>
++
++int main() {
++	int a = 1;
++	int b = 0;
++
++	// trigger the divide error
++	printf("%d \n", a/b);
++
++	return 0;
++}
